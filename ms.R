@@ -60,8 +60,8 @@ an.c = an.c_save[,c(-(7*2),-(7*2+1) )]
 
 
 #calculated the mean for R1 and R2 seperately.
-an.c$m = apply(an.c[seq(2,78,2)],1,mean)
-an.c$m2 = apply(an.c[seq(3,79,2)],1,mean)
+an.c$m = apply(an.c[seq(2,(dim(an.c)[2]-1),2)],1,mean)
+an.c$m2 = apply(an.c[seq(3,dim(an.c)[2],2)],1,mean)
 
 
 # mark outlier red with this function. This function can be used for fig1
@@ -155,13 +155,12 @@ outliers = function(x, control, an.c, outlier=TRUE, capt = FALSE, rosner=TRUE) {
 } #end of function outlier
 
 ### Here the function is applied: Things you can change: 
-      #control is 82 - the amount of cols u deleted
+      #control is 82 - the amount of cols u deleted... or you write (dim(an.c)[2]-1)
       #rosner: set to FALSE if u want a less aggresiv filter, but the results wont be significant anymore
       #capt: could be turned to true in order to generate one figure. but then it must be defined in the function code which fig.
-outlier = lapply(1:((dim(an.c)[2]-3)/2),function(x) outliers(x=x, control = 80, an.c = an.c, outlier = TRUE, rosner = TRUE))
+outlier = lapply(1:((dim(an.c)[2]-3)/2),function(x) outliers(x=x, control = (dim(an.c)[2]-1), an.c = an.c, outlier = TRUE, rosner = TRUE))
 outlier_order = unique(unlist(outlier)[order(unlist(outlier))])
-di = lapply(1:((dim(an.c)[2]-3)/2),function(x) outliers(x=x, control = 80, an.c = an.c, outlier = FALSE, rosner = TRUE))  # achtung funktion muss manuel geändert werden
-
+di = lapply(1:((dim(an.c)[2]-3)/2),function(x) outliers(x=x, control = (dim(an.c)[2]-1), an.c = an.c, outlier = FALSE, rosner = TRUE))  
 ##Here the di data is set to the right format
 di.df = as.data.frame(di)
 colnames(di.df) = 1:((dim(an.c)[2]-3)/2)
@@ -174,7 +173,7 @@ di.df.filter= di.df[outlier_order,]
 
 ###this function is for filtering into the other dimension
 
-heaty = function(x, artefacts, capt= FALSE){
+heaty = function(x, artefacts, capt= FALSE, filt = "outlier"){
 
   fml = as.double(x[1:((dim(an.c)[2]-3)/2)])
 
@@ -184,17 +183,21 @@ heaty = function(x, artefacts, capt= FALSE){
   #dev.off()
   #}
 
-
-  out2 <- boxplot.stats(fml)$out
-  out2_ind <- which(fml %in% c(out2)&fml>0)
-  out2_ind
-
-
-  if(length(out2_ind) == 0){
-    fml=rep(0,((dim(an.c)[2]-3)/2))
+  if(filt == "outlier"){
+    out2 <- boxplot.stats(fml)$out
+    out2_ind <- which(fml %in% c(out2)&fml>0)
+    out2_ind
+    
+    
+    if(length(out2_ind) == 0){
+      fml=rep(0,((dim(an.c)[2]-3)/2))
+    }else{
+      fml[-(out2_ind)]=0
+    }
   }else{
-  fml[-(out2_ind)]=0
+    fml[fml< 0] = 0  
   }
+  
 
   if(artefacts==TRUE){
 
@@ -242,20 +245,23 @@ for(t in 1:(((dim(an.c)[2]-3)/2)-2)){    ## Dont delete the positive control, fo
 }#end of heaty
 
 #Do u want to delete all signals without neighbor signals: set artefacts = TRUE
-di.df.filter2 = as.data.frame(t(apply(di.df.filter,1,function(x)heaty(x=x, artefacts = TRUE))))
+# for outlier filtering : filt = "outlier". for less strikt filtering filt = "positive"
+di.df.filter2 = as.data.frame(t(apply(di.df.filter,1,function(x)heaty(x=x, artefacts = TRUE, filt = "outlier"))))
 
-di.df.filter2$s = apply(di.df.filter2,1,sum)
+di.df.filter2$s = apply(di.df.filter2[-((dim(di.df.filter2)[2])-1)],1,sum)
 
 di.df.filter3 = di.df.filter2[di.df.filter2$s > 0,]
 
+
 di.df.filter3.norm = as.data.frame(t(apply(di.df.filter3[,1:((dim(an.c)[2]-3)/2)],1,function(x) x/max(x))))
+
 
 data = expand.grid(X = 1:((dim(an.c)[2]-3)/2), Y = ms$PG.Genes[as.double(row.names(di.df.filter3))] )
 data$Z = Z = as.double(unlist(t(di.df.filter3.norm)))
 
 
 
-svg("imgs/heatmap_man_without7_with_artefacts.svg",width=10,height=15)
+svg("imgs/heatmap",width=10,height=10)
 ggplot(data, aes(X,Y, fill=Z))+
   geom_tile()
 dev.off()
